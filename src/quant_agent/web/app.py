@@ -107,16 +107,26 @@ def frontend() -> str:
     <section class=\"hero\">
       <div class=\"pill\">Live frontend test</div>
       <h1>Agentic Traversal of Unstructured Data</h1>
-      <p>Generate a public-source recommendation digest from SEC filings, web sources, and Twitter context. This UI is meant for research and system testing, not live investment advice.</p>
-      <label for=\"tickers\">Tickers</label>
-      <input id=\"tickers\" value=\"AAPL,MSFT\" />
-      <label for=\"ciks\">CIK map JSON</label>
-      <textarea id=\"ciks\">{\"AAPL\": \"320193\", \"MSFT\": \"789019\"}</textarea>
+      <p>Generate a sector-first recommendation digest from SEC filings, web sources, and Twitter context. This UI is meant for research and system testing, not live investment advice.</p>
+      <label for=\"sector\">Sector</label>
+      <select id=\"sector\">
+        <option value=\"technology\">Technology</option>
+        <option value=\"financials\">Financials</option>
+        <option value=\"healthcare\">Healthcare</option>
+        <option value=\"industrials\">Industrials</option>
+        <option value=\"energy\">Energy</option>
+        <option value=\"utilities\">Utilities</option>
+        <option value=\"consumer_discretionary\">Consumer Discretionary</option>
+        <option value=\"communication_services\">Communication Services</option>
+        <option value=\"etfs\">ETFs</option>
+      </select>
+      <label for=\"subsector\">Subsector (optional)</label>
+      <input id=\"subsector\" placeholder=\"semiconductors, software, banks, pharma...\" />
       <label style=\"display:flex; gap:10px; align-items:center; margin-top:14px;\">
         <input id=\"live_sources\" type=\"checkbox\" style=\"width:auto; margin:0;\" />
         Use live SEC/web/Twitter sources
       </label>
-      <button id=\"run\">Generate recommendation markdown</button>
+      <button id=\"run\">Generate sector recommendations</button>
       <p class=\"small\" id=\"status\"></p>
     </section>
     <section class=\"card\">
@@ -132,19 +142,12 @@ def frontend() -> str:
     button.addEventListener('click', async () => {
       statusEl.textContent = 'Generating...';
       outputEl.textContent = 'Working...';
-      const tickers = document.getElementById('tickers').value.split(',').map(s => s.trim()).filter(Boolean);
-      let sec_ciks = {};
-      try {
-        sec_ciks = JSON.parse(document.getElementById('ciks').value || '{}');
-      } catch (error) {
-        statusEl.textContent = 'CIK JSON is invalid.';
-        outputEl.textContent = String(error);
-        return;
-      }
-      const response = await fetch('/recommendations/markdown', {
+      const sector = document.getElementById('sector').value;
+      const subsector = document.getElementById('subsector').value.trim();
+      const response = await fetch('/sector/recommendations/markdown', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tickers, sec_ciks, live_sources: document.getElementById('live_sources').checked })
+        body: JSON.stringify({ sector, subsector: subsector || null, live_sources: document.getElementById('live_sources').checked })
       });
       const payload = await response.json();
       if (!response.ok) {
