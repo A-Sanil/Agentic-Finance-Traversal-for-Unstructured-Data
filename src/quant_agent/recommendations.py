@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
 from quant_agent.llm import GeminiSummarizer
+from quant_agent.parsers import StructuredFilingParser
 from quant_agent.sources import SECClient, TwitterClient, WebSourceClient
 
 
@@ -57,6 +58,7 @@ class RecommendationEngine:
         self.twitter_client = TwitterClient()
         self.web_client = WebSourceClient()
         self.summarizer = GeminiSummarizer()
+        self.filing_parser = StructuredFilingParser()
 
     def build_report(self, tickers: List[str], sec_ciks: Optional[Dict[str, str]] = None, live_sources: bool = True) -> RecommendationReport:
         sec_ciks = sec_ciks or {}
@@ -162,23 +164,34 @@ class RecommendationEngine:
             )
         return context
 
-    def _thesis_from_context(self, ticker: str, sec_context: list[dict[str, str]], twitter_context: list[dict[str, str]], web_context: list[dict[str, str]]) -> str:
+    def _structured_sec_bullets(self, sec_context: List[dict[str, str]]) -> List[str]:
         sec_texts = [item.get("text", "") for item in sec_context if item.get("text")]
-        if sec_texts:
-            summary = self.summarizer.summarize_bullets(f"{ticker} SEC filings", sec_texts[:2])
-            return summary.text
+        if not sec_texts:
+            return []
+        parsed = self.filing_parser.parse("\n".join(sec_texts))
+        bullets = parsed.to_bullets()
+        if bullets:
+            return bullets
+        summary = self.summarizer.summarize_bullets("SEC filings", sec_texts[:2])
+        if summary.text:
+            return [line.lstrip("- ").strip() for line in summary.text.splitlines() if line.strip()]
+        return []
+
+    def _thesis_from_context(self, ticker: str, sec_context: List[dict[str, str]], twitter_context: List[dict[str, str]], web_context: List[dict[str, str]]) -> str:
+        sec_bullets = self._structured_sec_bullets(sec_context)
+        if sec_bullets:
+            return " | ".join(sec_bullets[:3])
         if sec_context:
             return f"{ticker} shows publicly reported filing activity that can support a research thesis around fundamentals and risk."
         if twitter_context:
             return f"{ticker} has active market discussion that should be cross-checked against filings before any allocation."
         return f"{ticker} is included as a placeholder candidate pending deeper public-source review."
 
-    def _reasons_from_context(self, ticker: str, sec_context: list[dict[str, str]], twitter_context: list[dict[str, str]], web_context: list[dict[str, str]]) -> list[str]:
+    def _reasons_from_context(self, ticker: str, sec_context: List[dict[str, str]], twitter_context: List[dict[str, str]], web_context: List[dict[str, str]]) -> List[str]:
         reasons: list[str] = []
-        sec_texts = [item.get("text", "") for item in sec_context if item.get("text")]
-        if sec_texts:
-            bullet_summary = self.summarizer.summarize_bullets(f"{ticker} filing evidence", sec_texts[:2])
-            reasons.extend([line.lstrip("- ") for line in bullet_summary.text.splitlines() if line.strip()][:4])
+        sec_bullets = self._structured_sec_bullets(sec_context)
+        if sec_bullets:
+            reasons.extend(sec_bullets[:4])
         elif sec_context:
             reasons.append("SEC filings provide direct evidence of recent management disclosure and formal risk factors.")
         if twitter_context:
@@ -200,7 +213,7 @@ class RecommendationEngine:
             sources.append(title)
         return sources[:8]
 
-    def _risk_notes_from_context(self, sec_context: list[dict[str, str]], twitter_context: list[dict[str, str]], web_context: list[dict[str, str]]) -> list[str]:
+    def _risk_notes_from_context(self, sec_context: List[dict[str, str]], twitter_context: List[dict[str, str]], web_context: List[dict[str, str]]) -> List[str]:
         notes: list[str] = []
         if sec_context:
             notes.append("Check filing dates carefully for stale disclosures and event-driven updates.")

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, Iterable, List
+from typing import Dict, Iterable, List, Optional
 
 from quant_agent.ingestion.source_adapters import NormalizedDocument, SourceAdapterRegistry
 from quant_agent.schemas import IngestRequest, IngestResponse
@@ -28,7 +28,7 @@ class InMemoryIngestionIndex:
 
 
 class IngestionPipeline:
-    def __init__(self, registry: SourceAdapterRegistry | None = None, index: InMemoryIngestionIndex | None = None) -> None:
+    def __init__(self, registry: Optional[SourceAdapterRegistry] = None, index: Optional[InMemoryIngestionIndex] = None) -> None:
         self.registry = registry or SourceAdapterRegistry()
         self.index = index or InMemoryIngestionIndex()
 

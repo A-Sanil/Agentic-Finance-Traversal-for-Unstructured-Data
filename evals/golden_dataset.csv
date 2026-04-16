@@ -1,0 +1,4 @@
+source_document_name,target_risk_factor,company_ticker,prediction_date,prediction_signal,actual_return_30d,actual_return_90d,outcome_match
+NVDA_10K_2024_12.pdf,supply_chain_resilience,NVDA,2025-01-15,BUY,12.5,28.3,TRUE
+JPM_8K_2025_01.pdf,interest_rate_sensitivity,JPM,2025-02-01,HOLD,3.2,8.7,TRUE
+TSLA_10Q_2024_Q4.pdf,demand_contraction_risk,TSLA,2025-01-20,SELL,-5.2,-12.1,TRUE

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from typing import List, Sequence
+from typing import Sequence
 
 try:
     import google.generativeai as genai
@@ -29,10 +29,10 @@ class GeminiSummarizer:
 
     def summarize(self, prompt: str) -> LLMResponse:
         if not self.enabled or self.model is None:
-            return LLMResponse(text=self._fallback(prompt), used_model="fallback")
+            return LLMResponse(text="", used_model="unavailable")
 
         response = self.model.generate_content(prompt)
-        text = getattr(response, "text", "") or self._fallback(prompt)
+        text = getattr(response, "text", "")
         return LLMResponse(text=text.strip(), used_model=self.model_name)
 
     def summarize_bullets(self, title: str, bullets: Sequence[str]) -> LLMResponse:
@@ -42,7 +42,3 @@ class GeminiSummarizer:
             + "\n".join(f"- {bullet}" for bullet in bullets)
         )
         return self.summarize(prompt)
-
-    def _fallback(self, prompt: str) -> str:
-        snippet = prompt[:220].replace("\n", " ")
-        return f"Fallback summary: {snippet}"
