@@ -11,9 +11,9 @@ router = APIRouter()
 
 @router.get("/dashboard")
 def trading_dashboard():
-    """Serve the trading dashboard HTML."""
+    """Serve the read-only agent tracker HTML info."""
     return {
-        "message": "Navigate to /trading-dashboard.html in the browser",
+        "message": "Navigate to /agent-tracker.html in the browser",
         "api_endpoints": {
             "account": "/trading/account",
             "positions": "/trading/positions",

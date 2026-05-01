@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agentic Traversal - Live Execution Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { 
+            background-color: #0b1120; 
+            color: #f8fafc; 
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; 
+        }
+        .glass { 
+            background: rgba(30, 41, 59, 0.7); 
+            backdrop-filter: blur(10px); 
+            border: 1px solid rgba(255, 255, 255, 0.1); 
+        }
+        .glow-text { text-shadow: 0 0 10px rgba(56, 189, 248, 0.5); }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-8">
+    <header class="mb-8 border-b border-slate-700 pb-4">
+        <h1 class="text-2xl text-sky-400 font-bold glow-text flex items-center gap-3">
+            <span class="relative flex h-3 w-3">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-3 w-3 bg-sky-500"></span>
+            </span>
+            Agentic Traversal Live Tracker
+        </h1>
+        <p class="text-slate-400 mt-2 text-sm">Read-only view of AI agent market traversal, reasoning, and portfolio actions.</p>
+    </header>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Left Column: Portfolio & Stats -->
+        <div class="space-y-6">
+            <!-- Account Stats -->
+            <div class="glass rounded-xl p-5 shadow-lg">
+                <h2 class="text-sky-300 font-semibold mb-4 border-b border-slate-700 pb-2">Agent Portfolio Snapshot</h2>
+                <div class="space-y-4">
+                    <div class="flex justify-between">
+                        <span class="text-slate-400">Total Equity</span>
+                        <span id="total-equity" class="font-bold text-white">$0.00</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-400">Available Cash</span>
+                        <span id="available-cash" class="font-bold text-white">$0.00</span>
+                    </div>
+                    <div class="flex justify-between items-center mt-4">
+                        <span class="text-slate-400">Agent Status</span>
+                        <span id="agent-status" class="px-2 py-1 rounded text-xs bg-slate-700 text-slate-300">Checking...</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Open Positions -->
+            <div class="glass rounded-xl p-5 shadow-lg">
+                <h2 class="text-sky-300 font-semibold mb-4 border-b border-slate-700 pb-2">Active Positions</h2>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm">
+                        <thead>
+                            <tr class="text-slate-400">
+                                <th class="pb-2">Asset</th>
+                                <th class="pb-2 text-right">Qty</th>
+                                <th class="pb-2 text-right">P&L</th>
+                            </tr>
+                        </thead>
+                        <tbody id="positions-body">
+                            <tr><td colspan="3" class="text-center text-slate-500 py-4">No active positions</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Agent Thought Process & Logs -->
+        <div class="lg:col-span-2 space-y-6">
+            <div class="glass rounded-xl p-5 shadow-lg h-[800px] flex flex-col">
+                <div class="flex justify-between items-center mb-4 border-b border-slate-700 pb-2 shrink-0">
+                    <h2 class="text-sky-300 font-semibold">Live Reasoning & Execution Log</h2>
+                    <span class="text-xs text-slate-400 flex items-center gap-2">
+                        <svg class="animate-spin h-3 w-3 text-sky-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Monitoring Data Streams
+                    </span>
+                </div>
+                
+                <div id="agent-log" class="flex-1 overflow-y-auto space-y-4 pr-2 text-sm pb-4">
+                    <div class="text-slate-500 animate-pulse">Waiting for agent activity...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function formatCurrency(val) {
+            return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val || 0);
+        }
+
+        function formatPercent(val) {
+            return (val >= 0 ? '+' : '') + (val || 0).toFixed(2) + '%';
+        }
+
+        async function fetchData() {
+            try {
+                // Fetch all agent state simultaneously from API 
+                const [acctRes, posRes, tradesRes, schedRes] = await Promise.all([
+                    fetch('/trading/account').catch(() => ({ok: false})),
+                    fetch('/trading/positions').catch(() => ({ok: false})),
+                    fetch('/trading/trades').catch(() => ({ok: false})),
+                    fetch('/trading/scheduler/status').catch(() => ({ok: false}))
+                ]);
+
+                if (acctRes.ok) {
+                    const account = await acctRes.json();
+                    document.getElementById('total-equity').textContent = formatCurrency(account.equity);
+                    document.getElementById('available-cash').textContent = formatCurrency(account.cash);
+                }
+
+                if (posRes.ok) {
+                    const posData = await posRes.json();
+                    const tbody = document.getElementById('positions-body');
+                    if (posData.positions && posData.positions.length > 0) {
+                        tbody.innerHTML = posData.positions.map(p => {
+                            const pnlColor = p.gain_loss >= 0 ? 'text-green-400' : 'text-red-400';
+                            return `
+                                <tr class="border-b border-slate-800 last:border-0">
+                                    <td class="py-2 font-bold text-sky-200">${p.symbol}</td>
+                                    <td class="py-2 text-right">${p.qty}</td>
+                                    <td class="py-2 text-right ${pnlColor}">${formatCurrency(p.gain_loss)} <span class="text-xs text-slate-500 ml-1">(${formatPercent(p.gain_loss_pct)})</span></td>
+                                </tr>
+                            `;
+                        }).join('');
+                    }
+                }
+
+                let logEntries = [];
+                
+                if (schedRes.ok) {
+                    const sched = await schedRes.json();
+                    const statusEl = document.getElementById('agent-status');
+                    
+                    if (sched.running) {
+                        statusEl.textContent = 'Active (Autonomous)';
+                        statusEl.className = 'px-2 py-1 rounded text-xs bg-green-900 text-green-300 border border-green-700';
+                    } else {
+                        statusEl.textContent = 'Idle (Sleeping)';
+                        statusEl.className = 'px-2 py-1 rounded text-xs bg-slate-800 text-slate-400 border border-slate-600';
+                    }
+
+                    if (sched.last_recommendations && sched.last_recommendations.timestamp) {
+                        const recs = sched.last_recommendations.recommendations || [];
+                        let recsHtml = recs.map(r => `
+                            <div class="mt-2 bg-slate-800/50 p-3 rounded border border-slate-700">
+                                <div class="text-sky-300 font-bold mb-1">Target: ${r.ticker || 'N/A'} (Analyzed: ${r.sector}/${r.subsector})</div>
+                                <div class="text-slate-300 mb-1"><span class="text-slate-500">Data Accessed:</span> SEC Filings, Web Context, Market Sentiment</div>
+                                <div class="text-slate-300 italic text-xs leading-relaxed"><span class="text-slate-500 not-italic">Derived Signal:</span> "${r.signal}"</div>
+                            </div>
+                        `).join('');
+
+                        logEntries.push(`
+                            <div class="border-l-2 border-indigo-500 pl-4 py-1">
+                                <div class="text-xs text-indigo-400 mb-1">${new Date(sched.last_recommendations.timestamp).toLocaleString()} • SYSTEM TRAVERSAL</div>
+                                <div class="text-slate-200 font-semibold">Agent completed data ingestion cycle.</div>
+                                ${recsHtml}
+                            </div>
+                        `);
+                    }
+                }
+
+                if (tradesRes.ok) {
+                    const tradesData = await tradesRes.json();
+                    if (tradesData.trades && tradesData.trades.length > 0) {
+                        tradesData.trades.forEach(t => {
+                            const sideColor = t.side === 'buy' ? 'text-green-400' : 'text-red-400';
+                            const sideBg = t.side === 'buy' ? 'border-green-500' : 'border-red-500';
+                            logEntries.push(`
+                                <div class="border-l-2 ${sideBg} pl-4 py-1">
+                                    <div class="text-xs text-slate-400 mb-1">${new Date(t.timestamp).toLocaleString()} • EXECUTION</div>
+                                    <div class="text-slate-200 text-base">
+                                        Agent decided to <span class="${sideColor} font-bold">${t.side.toUpperCase()}</span> ${t.qty} shares of <span class="font-bold">${t.symbol}</span>
+                                    </div>
+                                    <div class="mt-1 text-slate-300 bg-slate-800/30 p-2 rounded text-xs border border-slate-700">
+                                        <span class="text-slate-500 font-semibold">Execution Reasoning:</span> ${t.reason || 'Confidence threshold met based on evidence.'}
+                                    </div>
+                                </div>
+                            `);
+                        });
+                    }
+                }
+
+                if (logEntries.length > 0) {
+                    document.getElementById('agent-log').innerHTML = logEntries.join('<div class="h-2"></div>');
+                }
+
+            } catch (e) {
+                console.error("Dashboard fetch error:", e);
+            }
+        }
+
+        // Fetch initial data and start 15s refresh interval
+        fetchData();
+        setInterval(fetchData, 15000);
+    </script>
+</body>
+</html>
