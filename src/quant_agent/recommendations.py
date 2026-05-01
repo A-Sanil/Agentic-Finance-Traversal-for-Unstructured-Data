@@ -3,8 +3,9 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Dict, List
+from typing import Dict, List, Optional
 
+from quant_agent.llm import GeminiSummarizer
 from quant_agent.sources import SECClient, TwitterClient, WebSourceClient
 
 
@@ -55,8 +56,9 @@ class RecommendationEngine:
         self.sec_client = SECClient(user_agent=os.getenv("SEC_USER_AGENT", "Agentic Traversal <research@example.com>"))
         self.twitter_client = TwitterClient()
         self.web_client = WebSourceClient()
+        self.summarizer = GeminiSummarizer()
 
-    def build_report(self, tickers: List[str], sec_ciks: Dict[str, str] | None = None) -> RecommendationReport:
+    def build_report(self, tickers: List[str], sec_ciks: Optional[Dict[str, str]] = None) -> RecommendationReport:
         sec_ciks = sec_ciks or {}
         items: list[RecommendationItem] = []
         for ticker in tickers:
@@ -65,7 +67,7 @@ class RecommendationEngine:
             web_context = self._collect_web_context(ticker)
 
             thesis = self._thesis_from_context(ticker, sec_context, twitter_context, web_context)
-            reasons = self._reasons_from_context(sec_context, twitter_context, web_context)
+            reasons = self._reasons_from_context(ticker, sec_context, twitter_context, web_context)
             sources = self._sources_from_context(sec_context, twitter_context, web_context)
             risk_notes = self._risk_notes_from_context(sec_context, twitter_context, web_context)
 
@@ -92,13 +94,14 @@ class RecommendationEngine:
     def _collect_sec_context(self, cik: str) -> list[dict[str, str]]:
         if not cik:
             return []
-        filings = self.sec_client.fetch_recent_filings(cik, count=3)
+        filings = self.sec_client.fetch_recent_filing_texts(cik, count=2)
         context: list[dict[str, str]] = []
         for filing in filings:
             context.append(
                 {
                     "source": f"SEC {filing.get('form', '')} {filing.get('filing_date', '')}",
                     "accession_number": filing.get("accession_number", ""),
+                    "text": filing.get("text", ""),
                 }
             )
         return context
@@ -118,15 +121,23 @@ class RecommendationEngine:
         return context
 
     def _thesis_from_context(self, ticker: str, sec_context: list[dict[str, str]], twitter_context: list[dict[str, str]], web_context: list[dict[str, str]]) -> str:
+        sec_texts = [item.get("text", "") for item in sec_context if item.get("text")]
+        if sec_texts:
+            summary = self.summarizer.summarize_bullets(f"{ticker} SEC filings", sec_texts[:2])
+            return summary.text
         if sec_context:
             return f"{ticker} shows publicly reported filing activity that can support a research thesis around fundamentals and risk."
         if twitter_context:
             return f"{ticker} has active market discussion that should be cross-checked against filings before any allocation."
         return f"{ticker} is included as a placeholder candidate pending deeper public-source review."
 
-    def _reasons_from_context(self, sec_context: list[dict[str, str]], twitter_context: list[dict[str, str]], web_context: list[dict[str, str]]) -> list[str]:
+    def _reasons_from_context(self, ticker: str, sec_context: list[dict[str, str]], twitter_context: list[dict[str, str]], web_context: list[dict[str, str]]) -> list[str]:
         reasons: list[str] = []
-        if sec_context:
+        sec_texts = [item.get("text", "") for item in sec_context if item.get("text")]
+        if sec_texts:
+            bullet_summary = self.summarizer.summarize_bullets(f"{ticker} filing evidence", sec_texts[:2])
+            reasons.extend([line.lstrip("- ") for line in bullet_summary.text.splitlines() if line.strip()][:4])
+        elif sec_context:
             reasons.append("SEC filings provide direct evidence of recent management disclosure and formal risk factors.")
         if twitter_context:
             reasons.append("Twitter discussion can surface momentum, sentiment shifts, and catalysts for manual review.")

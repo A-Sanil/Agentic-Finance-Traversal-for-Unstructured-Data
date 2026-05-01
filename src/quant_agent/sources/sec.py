@@ -49,3 +49,26 @@ class SECClient:
         response = requests.get(url, headers=self._headers(), timeout=self.timeout)
         response.raise_for_status()
         return response.text
+
+    def fetch_recent_filing_texts(self, cik: str, count: int = 2) -> List[Dict[str, str]]:
+        filings = self.fetch_recent_filings(cik, count=count)
+        texts: list[Dict[str, str]] = []
+        for filing in filings:
+            accession_number = filing.get("accession_number", "")
+            primary_document = filing.get("primary_document", "")
+            if not accession_number or not primary_document:
+                continue
+            try:
+                text = self.fetch_filing_text(cik, accession_number, primary_document)
+            except Exception:
+                continue
+            texts.append(
+                {
+                    "source": f"SEC {filing.get('form', '')} {filing.get('filing_date', '')}",
+                    "accession_number": accession_number,
+                    "primary_document": primary_document,
+                    "filing_date": filing.get("filing_date", ""),
+                    "text": text,
+                }
+            )
+        return texts

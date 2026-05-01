@@ -6,10 +6,12 @@ from pydantic import BaseModel, Field
 from quant_agent.schemas import BacktestRequest, BacktestResponse, IngestRequest, IngestResponse, SignalRequest, FusedRecommendation
 from quant_agent.services import AgentService
 from quant_agent.recommendations import RecommendationEngine
+from quant_agent.web.app import router as web_router
 
 app = FastAPI(title="Agentic Traversal of Unstructured Data", version="0.1.0")
 service = AgentService()
 recommendation_engine = RecommendationEngine()
+app.include_router(web_router)
 
 
 class RecommendationRequest(BaseModel):
