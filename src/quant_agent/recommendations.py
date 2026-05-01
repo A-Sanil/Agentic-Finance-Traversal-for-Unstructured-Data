@@ -58,13 +58,37 @@ class RecommendationEngine:
         self.web_client = WebSourceClient()
         self.summarizer = GeminiSummarizer()
 
-    def build_report(self, tickers: List[str], sec_ciks: Optional[Dict[str, str]] = None) -> RecommendationReport:
+    def build_report(self, tickers: List[str], sec_ciks: Optional[Dict[str, str]] = None, live_sources: bool = True) -> RecommendationReport:
         sec_ciks = sec_ciks or {}
         items: list[RecommendationItem] = []
         for ticker in tickers:
-            sec_context = self._collect_sec_context(sec_ciks.get(ticker.upper(), ""))
-            twitter_context = self.twitter_client.search(f"{ticker} stock OR {ticker} earnings", limit=5)
-            web_context = self._collect_web_context(ticker)
+            if live_sources:
+                sec_context = self._collect_sec_context(sec_ciks.get(ticker.upper(), ""))
+                twitter_context = self.twitter_client.search(f"{ticker} stock OR {ticker} earnings", limit=5)
+                web_context = self._collect_web_context(ticker)
+            else:
+                sec_context = [
+                    {
+                        "source": f"Demo SEC context for {ticker}",
+                        "accession_number": "",
+                        "text": f"Demo filing context for {ticker}. Enable live sources to scrape SEC, web, and Twitter data.",
+                    }
+                ]
+                twitter_context = [
+                    {
+                        "id": "demo-twitter",
+                        "text": f"Demo social context for {ticker}.",
+                        "user": "demo",
+                        "url": "https://twitter.com",
+                    }
+                ]
+                web_context = [
+                    {
+                        "url": f"https://finance.yahoo.com/quote/{ticker}",
+                        "title": f"Demo web context for {ticker}",
+                        "text": f"Demo market context for {ticker}.",
+                    }
+                ]
 
             thesis = self._thesis_from_context(ticker, sec_context, twitter_context, web_context)
             reasons = self._reasons_from_context(ticker, sec_context, twitter_context, web_context)
@@ -94,7 +118,16 @@ class RecommendationEngine:
     def _collect_sec_context(self, cik: str) -> list[dict[str, str]]:
         if not cik:
             return []
-        filings = self.sec_client.fetch_recent_filing_texts(cik, count=2)
+        try:
+            filings = self.sec_client.fetch_recent_filing_texts(cik, count=2)
+        except Exception:
+            return [
+                {
+                    "source": f"SEC unavailable for CIK {cik}",
+                    "accession_number": "",
+                    "text": f"SEC filing lookup failed for CIK {cik}; fallback to other public sources.",
+                }
+            ]
         context: list[dict[str, str]] = []
         for filing in filings:
             context.append(
@@ -117,7 +150,16 @@ class RecommendationEngine:
                 context.extend(entries)
             except Exception:
                 continue
-        context.append(self.web_client.fetch_url(f"https://finance.yahoo.com/quote/{ticker}"))
+        try:
+            context.append(self.web_client.fetch_url(f"https://finance.yahoo.com/quote/{ticker}"))
+        except Exception:
+            context.append(
+                {
+                    "url": f"https://finance.yahoo.com/quote/{ticker}",
+                    "title": f"Yahoo Finance {ticker}",
+                    "text": f"Web quote page unavailable for {ticker}; using fallback evidence.",
+                }
+            )
         return context
 
     def _thesis_from_context(self, ticker: str, sec_context: list[dict[str, str]], twitter_context: list[dict[str, str]], web_context: list[dict[str, str]]) -> str:

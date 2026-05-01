@@ -6,7 +6,7 @@ test:
 	$(PYTHON) -m pytest
 
 run:
-	$(PYTHON) -m uvicorn quant_agent.api.main:app --reload
+	$(PYTHON) -m uvicorn --app-dir src quant_agent.api.main:app --reload
 
 lint:
 	$(PYTHON) -m ruff check src tests

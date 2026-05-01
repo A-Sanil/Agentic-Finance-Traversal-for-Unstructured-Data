@@ -34,5 +34,5 @@ See [docs/readme_images.md](docs/readme_images.md) for a concrete list of images
 ## Run locally
 
 ```bash
-python -m uvicorn quant_agent.api.main:app --reload
+python -m uvicorn --app-dir src quant_agent.api.main:app --reload
 ```

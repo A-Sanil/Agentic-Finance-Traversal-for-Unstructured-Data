@@ -112,6 +112,10 @@ def frontend() -> str:
       <input id=\"tickers\" value=\"AAPL,MSFT\" />
       <label for=\"ciks\">CIK map JSON</label>
       <textarea id=\"ciks\">{\"AAPL\": \"320193\", \"MSFT\": \"789019\"}</textarea>
+      <label style=\"display:flex; gap:10px; align-items:center; margin-top:14px;\">
+        <input id=\"live_sources\" type=\"checkbox\" style=\"width:auto; margin:0;\" />
+        Use live SEC/web/Twitter sources
+      </label>
       <button id=\"run\">Generate recommendation markdown</button>
       <p class=\"small\" id=\"status\"></p>
     </section>
@@ -140,7 +144,7 @@ def frontend() -> str:
       const response = await fetch('/recommendations/markdown', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tickers, sec_ciks })
+        body: JSON.stringify({ tickers, sec_ciks, live_sources: document.getElementById('live_sources').checked })
       });
       const payload = await response.json();
       if (!response.ok) {

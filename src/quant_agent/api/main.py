@@ -17,6 +17,7 @@ app.include_router(web_router)
 class RecommendationRequest(BaseModel):
     tickers: list[str] = Field(default_factory=list)
     sec_ciks: dict[str, str] = Field(default_factory=dict)
+    live_sources: bool = Field(default=False)
 
 
 @app.get("/health")
@@ -44,5 +45,5 @@ def run_backtest(request: BacktestRequest) -> BacktestResponse:
 
 @app.post("/recommendations/markdown")
 def build_recommendation_markdown(request: RecommendationRequest) -> dict[str, str]:
-    report = recommendation_engine.build_report(request.tickers, request.sec_ciks)
+    report = recommendation_engine.build_report(request.tickers, request.sec_ciks, live_sources=request.live_sources)
     return {"markdown": report.to_markdown()}
