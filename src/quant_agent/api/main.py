@@ -5,7 +5,7 @@ from fastapi import FastAPI, HTTPException
 from quant_agent.schemas import BacktestRequest, BacktestResponse, IngestRequest, IngestResponse, SignalRequest, FusedRecommendation
 from quant_agent.services import AgentService
 
-app = FastAPI(title="Quant RAG Agent", version="0.1.0")
+app = FastAPI(title="Agentic Traversal of Unstructured Data", version="0.1.0")
 service = AgentService()
 
 

@@ -1,6 +1,6 @@
-# Quant RAG Agent
+# Agentic Traversal of Unstructured Data
 
-API-first RAG and quant signal platform for unstructured financial data.
+Agentic traversal platform for unstructured financial data and quant research.
 
 ## v1 Scope
 

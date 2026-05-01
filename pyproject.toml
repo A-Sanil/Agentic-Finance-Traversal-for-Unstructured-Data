@@ -3,9 +3,9 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "quant-rag-agent"
+name = "agentic-traversal-unstructured-data"
 version = "0.1.0"
-description = "API-first RAG and quant signal platform for unstructured financial data"
+description = "Agentic traversal platform for unstructured financial data and quant research"
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [

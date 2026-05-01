@@ -1,1 +1,1 @@
-"""Quant RAG Agent package."""
+"""Agentic traversal of unstructured data package."""
