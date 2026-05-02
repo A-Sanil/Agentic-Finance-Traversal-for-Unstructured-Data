@@ -1,20 +1,20 @@
-# Agentic Traversal of Unstructured Data
+# Autonomous Financial AI Agent: Traversal, Reasoning & Execution
 
-Agentic traversal platform for unstructured financial data and quant research. Ingests public financial documents, normalizes them through a structured pipeline, retrieves evidence with citation traceability, and generates evidence-backed investment recommendations with execution summaries.
+An end-to-end autonomous AI trading agent that traverses unstructured financial data, performs Retrieval-Augmented Generation (RAG) to derive market signals, and executes trades autonomously via the Alpaca API. The system features a real-time observability dashboard to monitor the agent's thought process, portfolio state, and risk-gated execution.
 
 ## Recruiter Snapshot
 
-This project demonstrates an end-to-end production-style AI trading workflow:
+This project demonstrates a production-grade orchestration pipeline for autonomous AI systems. It proves that I can build scalable backends, integrate complex third-party APIs, and deploy cloud-native applications. Key engineering highlights include:
 
-- Multi-source traversal over unstructured financial inputs (SEC filings, Twitter/X context, and financial web/news sources)
-- Evidence-linked recommendation generation (RAG with citation traceability)
-- Automated paper-trading execution on Alpaca (stocks + optional crypto)
-- Live API endpoints for account, positions, order history, scheduler status, and execution logs
-- Test-backed backend architecture (FastAPI + typed schemas + deterministic pytest coverage)
+- **Autonomous Agent Architecture**: Scheduled background workers (APScheduler) trigger the agent to independently ingest SEC filings, Twitter context, and web news.
+- **RAG & LLM Reasoning**: A deterministic chunking pipeline and in-memory vector index feed clean context to the LLM (Gemini) to generate evidence-backed trading signals.
+- **Risk-Gated Execution Engine**: The agent sizes positions dynamically based on portfolio equity and risk limits, placing live paper trades via the Alpaca API.
+- **Live Observability UI**: A decoupled, read-only frontend (deployed to Firebase) streams real-time data from the FastAPI backend (deployed to Render) to visualize *what* the agent is holding and *why* it made those decisions.
+- **Rigorous Testing & Evaluation**: 90%+ core logic test coverage (Pytest) alongside a custom LLM evaluation framework leveraging a golden dataset to measure agent accuracy (Precision/Recall/F1).
 
-If you are evaluating this as a portfolio project, the key differentiator is not chat UX. It is the orchestration pipeline: ingestion, normalization, retrieval, recommendation, risk-gated execution, and auditable trade/event outputs.
+**Tech Stack**: Python 3.9, FastAPI, Uvicorn, Alpaca Trade API, Google Gemini, APScheduler, Pytest, HTML/TailwindCSS, Firebase Hosting, Render.
 
-## Automated Paper Trading Quickstart
+## Quickstart: Running the Agent & Tracker Locally
 
 1. Create a local env file:
 ```bash

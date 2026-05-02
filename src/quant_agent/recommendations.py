@@ -8,8 +8,6 @@ from typing import Dict, List, Optional
 from quant_agent.llm import GeminiSummarizer
 from quant_agent.parsers import StructuredFilingParser
 from quant_agent.sources import SECClient, TwitterClient, WebSourceClient
-from quant_agent import events
-import asyncio
 
 
 @dataclass
@@ -108,89 +106,6 @@ class RecommendationEngine:
                     risk_notes=risk_notes,
                 )
             )
-
-        return RecommendationReport(
-            title="Stock Recommendation Digest",
-            generated_at=datetime.now(timezone.utc).isoformat(),
-            items=items,
-            notes=[
-                "This report is generated from public sources and should be used for research only.",
-                "Use the Google API key via environment variable only; never hardcode secrets in the repository.",
-            ],
-        )
-
-    async def build_report_async(self, tickers: List[str], sec_ciks: Optional[Dict[str, str]] = None, live_sources: bool = True) -> RecommendationReport:
-        """Asynchronous variant of build_report that streams citations as they are discovered.
-
-        This method uses async wrappers and thread-execution for blocking clients so callers
-        can receive in-flight citation events via the `quant_agent.events` pub/sub.
-        """
-        sec_ciks = sec_ciks or {}
-        items: list[RecommendationItem] = []
-
-        # For each ticker, fetch contexts concurrently to speed up traversal.
-        async def process_ticker(ticker: str) -> RecommendationItem:
-            if live_sources:
-                sec_task = asyncio.to_thread(self._collect_sec_context, sec_ciks.get(ticker.upper(), ""))
-                twitter_task = asyncio.create_task(self.twitter_client.search_async(f"{ticker} stock OR {ticker} earnings", limit=5))
-                web_task = asyncio.to_thread(self._collect_web_context, ticker)
-
-                sec_context, twitter_context, web_context = await asyncio.gather(sec_task, twitter_task, web_task)
-            else:
-                sec_context = [
-                    {
-                        "source": f"Demo SEC context for {ticker}",
-                        "accession_number": "",
-                        "text": f"Demo filing context for {ticker}. Enable live sources to scrape SEC, web, and Twitter data.",
-                    }
-                ]
-                twitter_context = [
-                    {
-                        "id": "demo-twitter",
-                        "text": f"Demo social context for {ticker}.",
-                        "user": "demo",
-                        "url": "https://twitter.com",
-                    }
-                ]
-                web_context = [
-                    {
-                        "url": f"https://finance.yahoo.com/quote/{ticker}",
-                        "title": f"Demo web context for {ticker}",
-                        "text": f"Demo market context for {ticker}.",
-                    }
-                ]
-
-            # Publish web contexts as citation events so UIs can stream them.
-            try:
-                for w in web_context:
-                    await events.publish({
-                        "type": "web",
-                        "ticker": ticker,
-                        "url": w.get("url"),
-                        "title": w.get("title"),
-                        "snippet": (w.get("text") or w.get("summary") or "")[:300],
-                    })
-            except Exception:
-                pass
-
-            thesis = self._thesis_from_context(ticker, sec_context, twitter_context, web_context)
-            reasons = self._reasons_from_context(ticker, sec_context, twitter_context, web_context)
-            sources = self._sources_from_context(sec_context, twitter_context, web_context)
-            risk_notes = self._risk_notes_from_context(sec_context, twitter_context, web_context)
-
-            return RecommendationItem(
-                ticker=ticker.upper(),
-                thesis=thesis,
-                reasons=reasons,
-                sources=sources,
-                risk_notes=risk_notes,
-            )
-
-        # Kick off concurrent processing for all tickers
-        tasks = [asyncio.create_task(process_ticker(t)) for t in tickers]
-        for coro in asyncio.as_completed(tasks):
-            item = await coro
-            items.append(item)
 
         return RecommendationReport(
             title="Stock Recommendation Digest",
