@@ -1,7 +1,15 @@
 from __future__ import annotations
 
+import os
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
+from fastapi.responses import StreamingResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
+import json
+import asyncio
+from dotenv import load_dotenv
+
+from quant_agent import events
 
 from typing import Optional
 
@@ -18,6 +26,33 @@ service = AgentService()
 recommendation_engine = RecommendationEngine()
 sector_recommendation_engine = SectorRecommendationEngine()
 
+# Load environment variables from .env when running locally.
+load_dotenv()
+
+
+def _env_float(name: str, default: float) -> float:
+    value = os.getenv(name, "").strip()
+    if not value:
+        return default
+    try:
+        return float(value)
+    except ValueError:
+        return default
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    value = os.getenv(name, "").strip().lower()
+    if not value:
+        return default
+    return value in {"1", "true", "yes", "on"}
+
+
+def _env_list(name: str, default: list[str]) -> list[str]:
+    value = os.getenv(name, "").strip()
+    if not value:
+        return default
+    return [item.strip() for item in value.split(",") if item.strip()]
+
 # Initialize trading components (optional - only if Alpaca API keys are set)
 alpaca_client = None
 trading_executor = None
@@ -30,12 +65,33 @@ try:
         alpaca_client=alpaca_client,
         recommendation_engine=sector_recommendation_engine,
         trading_executor=trading_executor,
-        auto_execute=False,  # Start with manual control
+        auto_execute=_env_bool("TRADING_AUTO_EXECUTE", True),
+        market_scan_cron=os.getenv("TRADING_MARKET_SCAN_CRON", "*/5 * * * *"),
+        crypto_scan_cron=os.getenv("TRADING_CRYPTO_SCAN_CRON", "*/15 * * * *"),
+        market_position_size_pct=_env_float("TRADING_MARKET_POSITION_SIZE_PCT", 0.12),
+        market_max_position_size_pct=_env_float("TRADING_MARKET_MAX_POSITION_SIZE_PCT", 0.35),
+        market_min_confidence=_env_float("TRADING_MARKET_MIN_CONFIDENCE", 0.62),
+        crypto_position_size_pct=_env_float("TRADING_CRYPTO_POSITION_SIZE_PCT", 0.02),
+        crypto_max_position_size_pct=_env_float("TRADING_CRYPTO_MAX_POSITION_SIZE_PCT", 0.05),
+        crypto_min_confidence=_env_float("TRADING_CRYPTO_MIN_CONFIDENCE", 0.88),
+        crypto_watchlist=_env_list("TRADING_CRYPTO_WATCHLIST", ["BTC-USD", "ETH-USD", "SOL-USD", "DOGE-USD", "XRP-USD"]),
+        enable_crypto=_env_bool("TRADING_ENABLE_CRYPTO", True),
     )
 except Exception as e:
     print(f"Warning: Trading features disabled ({e}). Set APCA_API_KEY_ID and APCA_API_SECRET_KEY to enable.")
 
 app.include_router(web_router)
+app.mount("/static", StaticFiles(directory="static", html=False), name="static")
+
+
+@app.get("/trading-dashboard.html")
+def trading_dashboard_html() -> FileResponse:
+    return FileResponse("static/trading-dashboard.html")
+
+
+@app.get("/agent-tracker.html")
+def agent_tracker_html() -> FileResponse:
+    return FileResponse("static/agent-tracker.html")
 
 
 class RecommendationRequest(BaseModel):
@@ -43,7 +99,6 @@ class RecommendationRequest(BaseModel):
     sec_ciks: dict[str, str] = Field(default_factory=dict)
     live_sources: bool = Field(default=False)
 
-Optional[str]
 class SectorRecommendationRequest(BaseModel):
     sector: str = Field(..., min_length=2)
     subsector: Optional[str] = None
@@ -77,6 +132,34 @@ def run_backtest(request: BacktestRequest) -> BacktestResponse:
 def build_recommendation_markdown(request: RecommendationRequest) -> dict[str, str]:
     report = recommendation_engine.build_report(request.tickers, request.sec_ciks, live_sources=request.live_sources)
     return {"markdown": report.to_markdown()}
+
+
+@app.post("/recommendations/async")
+async def build_recommendation_async(request: RecommendationRequest) -> dict[str, str]:
+    """Asynchronous recommendation builder that streams citation events to `/stream/citations`.
+
+    Callers can open a Server-Sent Events connection to `/stream/citations` to watch
+    citations and progress as the engine traverses sources.
+    """
+    report = await recommendation_engine.build_report_async(request.tickers, request.sec_ciks, live_sources=request.live_sources)
+    return {"markdown": report.to_markdown()}
+
+
+@app.get("/stream/citations")
+async def stream_citations():
+    """Server-Sent Events endpoint streaming citation events as JSON lines.
+
+    Each event is JSON-encoded and prefixed with `data:` per SSE spec.
+    """
+    async def event_generator():
+        async for ev in events.subscribe():
+            try:
+                payload = json.dumps(ev, default=str)
+            except Exception:
+                payload = json.dumps({"type": "error", "msg": "serialization error"})
+            yield f"data: {payload}\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
 @app.get("/sectors")
@@ -235,14 +318,15 @@ def get_scheduler_status() -> dict:
 
 
 @app.post("/trading/scheduler/start")
-def start_scheduler(cron: str = "0 * * * *") -> dict:
-    """Start the recommendation scheduler. Cron format: '0 * * * *' = every hour."""
+def start_scheduler(cron: Optional[str] = None) -> dict:
+    """Start the recommendation scheduler. If cron is omitted, use env/default cadence."""
     if not scheduler:
         raise HTTPException(status_code=503, detail="Trading features disabled. Set Alpaca API keys.")
     
     try:
-        scheduler.start(cron_expression=cron)
-        return {"status": "started", "cron": cron}
+        cron_expr = cron or os.getenv("TRADING_MARKET_SCAN_CRON", "*/1 * * * *")
+        scheduler.start(cron_expression=cron_expr)
+        return {"status": "started", "cron": cron_expr}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

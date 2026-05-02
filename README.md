@@ -2,6 +2,49 @@
 
 Agentic traversal platform for unstructured financial data and quant research. Ingests public financial documents, normalizes them through a structured pipeline, retrieves evidence with citation traceability, and generates evidence-backed investment recommendations with execution summaries.
 
+## Recruiter Snapshot
+
+This project demonstrates an end-to-end production-style AI trading workflow:
+
+- Multi-source traversal over unstructured financial inputs (SEC filings, Twitter/X context, and financial web/news sources)
+- Evidence-linked recommendation generation (RAG with citation traceability)
+- Automated paper-trading execution on Alpaca (stocks + optional crypto)
+- Live API endpoints for account, positions, order history, scheduler status, and execution logs
+- Test-backed backend architecture (FastAPI + typed schemas + deterministic pytest coverage)
+
+If you are evaluating this as a portfolio project, the key differentiator is not chat UX. It is the orchestration pipeline: ingestion, normalization, retrieval, recommendation, risk-gated execution, and auditable trade/event outputs.
+
+## Automated Paper Trading Quickstart
+
+1. Create a local env file:
+```bash
+cp .env.example .env
+```
+
+2. Put your Alpaca paper keys in `.env`:
+  - `APCA_API_KEY_ID`
+  - `APCA_API_SECRET_KEY`
+  - Keep `APCA_API_BASE_URL=https://paper-api.alpaca.markets`
+
+3. Install dependencies:
+```bash
+pip install -r requirements.txt
+```
+
+4. Start the API (scheduler auto-starts if `TRADING_AUTO_EXECUTE=true`):
+```bash
+python -m uvicorn --app-dir src quant_agent.api.main:app --host 127.0.0.1 --port 8000 --reload
+```
+
+5. Track live behavior:
+  - `GET /trading/scheduler/status`
+  - `GET /trading/account`
+  - `GET /trading/positions`
+  - `GET /trading/orders`
+  - `GET /trading/trades`
+
+Security note: `.env` is git-ignored. Do not commit API keys.
+
 ## v1 Scope
 
 - Ingest public financial documents and web sources

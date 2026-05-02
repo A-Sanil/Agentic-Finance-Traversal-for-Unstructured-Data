@@ -24,7 +24,7 @@ This guide explains how to deploy the backend to Render and the frontend to Fire
    
    # Install Python dependencies
    pip install -r requirements.txt
-   pip install alpaca-trade-api apscheduler aiofiles
+   pip install -e .
    ```
 
 ---
@@ -48,17 +48,27 @@ Before deploying, you'll need your Alpaca API credentials:
    - **Environment**: `Python 3.9`
    - **Build Command**: 
      ```
-     pip install -r requirements.txt && pip install alpaca-trade-api apscheduler aiofiles
+       pip install -r requirements.txt && pip install -e .
      ```
    - **Start Command**: 
      ```
-     python -m uvicorn --app-dir src quant_agent.api.main:app --host 0.0.0.0 --port $PORT
+          python -m uvicorn --app-dir src quant_agent.api.main:app --host 0.0.0.0 --port $PORT
      ```
    - **Plan**: Free tier
 5. Click "Advanced" and add environment variables:
    - `APCA_API_KEY_ID`: [your key]
    - `APCA_API_SECRET_KEY`: [your secret]
    - `APCA_API_BASE_URL`: `https://paper-api.alpaca.markets`
+   - `TRADING_MARKET_SCAN_CRON`: `*/5 * * * *`
+   - `TRADING_CRYPTO_SCAN_CRON`: `*/15 * * * *`
+   - `TRADING_MARKET_POSITION_SIZE_PCT`: `0.12`
+   - `TRADING_MARKET_MAX_POSITION_SIZE_PCT`: `0.35`
+   - `TRADING_MARKET_MIN_CONFIDENCE`: `0.62`
+   - `TRADING_CRYPTO_POSITION_SIZE_PCT`: `0.02`
+   - `TRADING_CRYPTO_MAX_POSITION_SIZE_PCT`: `0.05`
+   - `TRADING_CRYPTO_MIN_CONFIDENCE`: `0.88`
+   - `TRADING_CRYPTO_WATCHLIST`: `BTC-USD,ETH-USD,SOL-USD,DOGE-USD,XRP-USD`
+   - `TRADING_ENABLE_CRYPTO`: `true`
 
 ### Step 3: Deploy
 
@@ -87,7 +97,7 @@ firebase init hosting
 
 ### Step 2: Update Dashboard API URLs
 
-Edit `static/trading-dashboard.html` and update the API_BASE variable to point to your Render URL:
+Edit `static/trading-dashboard.html` and update the API_BASE variable to point to your Render URL. The Firebase site is read-only: it shows account, positions, trades, and scheduler status, but it does not expose any trade entry controls.
 
 ```javascript
 // Replace line 214:

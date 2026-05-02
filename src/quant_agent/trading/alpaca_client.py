@@ -98,13 +98,22 @@ class AlpacaClient:
         # Set paper trading endpoint if requested
         if paper_trading:
             os.environ.setdefault("APCA_API_BASE_URL", "https://paper-api.alpaca.markets")
-        
-        # Initialize API
+
+        # Read API credentials from environment (do NOT hardcode keys in source)
+        api_key = os.getenv("APCA_API_KEY_ID")
+        api_secret = os.getenv("APCA_API_SECRET_KEY")
+        base_url = os.getenv("APCA_API_BASE_URL")
+
+        if not api_key or not api_secret:
+            raise RuntimeError("Alpaca API keys not found in environment. Set APCA_API_KEY_ID and APCA_API_SECRET_KEY.")
+
+        # Initialize API with explicit credentials
         try:
-            self.api = tradeapi.REST()
+            # tradeapi.REST accepts (key_id, secret_key, base_url)
+            self.api = tradeapi.REST(key_id=api_key, secret_key=api_secret, base_url=base_url)
         except Exception as e:
-            raise RuntimeError(f"Failed to initialize Alpaca API: {e}. Check API keys.")
-        
+            raise RuntimeError(f"Failed to initialize Alpaca API: {e}. Check API keys and APCA_API_BASE_URL.")
+
         self.paper_trading = paper_trading
     
     def get_account(self) -> Account:

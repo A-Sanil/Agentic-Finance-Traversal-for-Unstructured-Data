@@ -4,7 +4,10 @@ import re
 from dataclasses import dataclass, field
 from typing import List
 
-from bs4 import BeautifulSoup
+try:
+    from bs4 import BeautifulSoup
+except ImportError:
+    BeautifulSoup = None
 
 
 @dataclass
@@ -72,8 +75,12 @@ class StructuredFilingParser:
         )
 
     def _normalize(self, raw_text: str) -> str:
-        soup = BeautifulSoup(raw_text, "html.parser")
-        text = soup.get_text(" ")
+        if BeautifulSoup is not None:
+            soup = BeautifulSoup(raw_text, "html.parser")
+            text = soup.get_text(" ")
+        else:
+            # Fallback for deployments where bs4 is not installed.
+            text = re.sub(r"<[^>]+>", " ", raw_text)
         text = re.sub(r"\s+", " ", text)
         return text.strip()
 

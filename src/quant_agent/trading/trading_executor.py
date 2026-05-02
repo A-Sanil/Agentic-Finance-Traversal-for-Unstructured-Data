@@ -6,6 +6,7 @@ Includes position sizing, risk management, and trade logging.
 """
 
 import json
+import os
 from datetime import datetime
 from typing import Dict, List, Optional
 from pathlib import Path
@@ -72,6 +73,7 @@ class TradingExecutor:
         alpaca_client: AlpacaClient,
         position_size_pct: float = 0.05,
         max_position_size_pct: float = 0.20,
+        min_confidence: float = 0.50,
         log_file: str = "trades.jsonl",
     ):
         """
@@ -81,26 +83,45 @@ class TradingExecutor:
             alpaca_client: Alpaca API client instance
             position_size_pct: Percentage of portfolio to use per trade (default: 5%)
             max_position_size_pct: Maximum allowed position size as % of portfolio
+            min_confidence: Minimum confidence required to execute a trade
             log_file: Path to trade log file
         """
         self.client = alpaca_client
-        self.position_size_pct = position_size_pct
-        self.max_position_size_pct = max_position_size_pct
+
+        # Allow environment overrides for sizing and execution enablement
+        env_pos = os.getenv("TRADING_POSITION_SIZE_PCT")
+        env_max_pos = os.getenv("TRADING_MAX_POSITION_SIZE_PCT")
+        env_min_conf = os.getenv("TRADING_MIN_CONFIDENCE")
+
+        self.position_size_pct = float(env_pos) if env_pos is not None else position_size_pct
+        self.max_position_size_pct = float(env_max_pos) if env_max_pos is not None else max_position_size_pct
+        self.min_confidence = float(env_min_conf) if env_min_conf is not None else min_confidence
         self.trade_log = TradeLog(log_file)
     
-    def calculate_position_size(self, account_value: float, price: float) -> float:
+    def calculate_position_size(
+        self,
+        account_value: float,
+        price: float,
+        position_size_pct: Optional[float] = None,
+        max_position_size_pct: Optional[float] = None,
+    ) -> float:
         """
         Calculate safe position size based on portfolio percentage.
         
         Args:
             account_value: Total portfolio value
             price: Current stock price
+            position_size_pct: Optional override for target position size.
+            max_position_size_pct: Optional override for max allowed position size.
         
         Returns:
             Number of shares to buy
         """
-        max_dollar_amount = account_value * self.max_position_size_pct
-        position_dollar_amount = account_value * self.position_size_pct
+        target_pct = self.position_size_pct if position_size_pct is None else position_size_pct
+        max_pct = self.max_position_size_pct if max_position_size_pct is None else max_position_size_pct
+
+        max_dollar_amount = account_value * max_pct
+        position_dollar_amount = account_value * target_pct
         
         qty = min(
             position_dollar_amount / price,
@@ -114,6 +135,9 @@ class TradingExecutor:
         ticker: str,
         signal: str,
         confidence: float = 0.8,
+        min_confidence: Optional[float] = None,
+        position_size_pct: Optional[float] = None,
+        max_position_size_pct: Optional[float] = None,
         reason: str = "",
     ) -> Optional[Order]:
         """
@@ -123,16 +147,27 @@ class TradingExecutor:
             ticker: Stock ticker
             signal: "BUY", "SELL", or "HOLD"
             confidence: Confidence score (0-1)
+            min_confidence: Optional per-trade minimum confidence override.
+            position_size_pct: Optional override for portfolio percentage sizing.
+            max_position_size_pct: Optional override for max size sizing.
             reason: Explanation for the signal
         
         Returns:
             Order object if trade was placed, None otherwise.
         """
+        # Global execution enable/disable (safety kill-switch)
+        exec_enabled = os.getenv("TRADING_ENABLE_EXECUTION", "true").lower() == "true"
+        if not exec_enabled:
+            print("Trading execution disabled by TRADING_ENABLE_EXECUTION flag. Skipping execution.")
+            self.trade_log.log_trade(ticker, signal, 0, "Execution disabled")
+            return None
+
         if signal == "HOLD":
             self.trade_log.log_trade(ticker, "HOLD", 0, reason)
             return None
         
-        if confidence < 0.5:
+        confidence_floor = self.min_confidence if min_confidence is None else min_confidence
+        if confidence < confidence_floor:
             print(f"Signal confidence {confidence:.1%} too low for {ticker}. Skipping.")
             return None
         
@@ -154,7 +189,12 @@ class TradingExecutor:
                     print(f"Invalid price for {ticker}: {price}")
                     return None
                 
-                qty = self.calculate_position_size(account.equity, price)
+                qty = self.calculate_position_size(
+                    account.equity,
+                    price,
+                    position_size_pct=position_size_pct,
+                    max_position_size_pct=max_position_size_pct,
+                )
                 
                 if qty <= 0:
                     print(f"Calculated quantity is 0 for {ticker}. Skipping.")
